@@ -131,6 +131,13 @@ class SerialPlotter(QMainWindow):
         self.update_rate_selector.setCurrentText(str(self.update_every_n))
         self.update_rate_selector.currentTextChanged.connect(self.change_update_rate)
 
+        # إضافة ComboBox لحجم العينات (max_samples)
+        self.max_samples_selector = QComboBox()
+        max_samples_options = [str(i) for i in [100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000]]
+        self.max_samples_selector.addItems(max_samples_options)
+        self.max_samples_selector.setCurrentText(str(self.max_samples))
+        self.max_samples_selector.currentTextChanged.connect(self.change_max_samples)
+
         self.refresh_button = QPushButton("🔄 Refresh Ports")
         self.start_button = QPushButton("▶️ Start")
         self.stop_button = QPushButton("⏹️ Stop")
@@ -155,7 +162,8 @@ class SerialPlotter(QMainWindow):
         for widget in [
             QLabel("COM Port:"), self.port_selector, self.refresh_button,
             QLabel("Baudrate:"), self.baudrate_selector,
-            QLabel("Update Rate:"), self.update_rate_selector,  # أضف هذا السطر
+            QLabel("Update Rate:"), self.update_rate_selector,
+            QLabel("Max Samples:"), self.max_samples_selector,  # أضف هذا السطر
             self.start_button, self.stop_button, self.save_button,
             self.load_csv_button, self.open_img_button,
             self.show_table_button, self.reset_cursors_button
@@ -482,6 +490,13 @@ class SerialPlotter(QMainWindow):
             self.status_label.setText(f"🔄 Update rate set to {self.update_every_n}")
         except Exception:
             self.status_label.setText("⚠️ Invalid update rate")
+
+    def change_max_samples(self, value):
+        try:
+            self.max_samples = int(value)
+            self.status_label.setText(f"🔢 Max samples set to {self.max_samples}")
+        except Exception:
+            self.status_label.setText("⚠️ Invalid max samples")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
