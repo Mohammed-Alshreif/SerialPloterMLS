@@ -83,8 +83,10 @@ class DraggableCursor(QObject):
 class SerialPlotter(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Mohammed Adel Alshreif (MLS) -Elaraby group")
+        self.setWindowTitle("Mohammed Adel Alshreif (MLS)")
         self.resize(1000, 700)
+
+        self.update_every_n = 10  # أضف هذا السطر هنا قبل init_ui
 
         self.serial = None
         self.csv_writer = None
@@ -107,9 +109,28 @@ class SerialPlotter(QMainWindow):
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_plot)
+        self.update_counter = 0  # أضف هذا المتغير
+        self.update_every_n = 10  # حدث الرسم كل 10 عينات فقط
 
     def init_ui(self):
         self.port_selector = QComboBox()
+        # إضافة ComboBox للـ Baudrate
+        self.baudrate_selector = QComboBox()
+        baudrates = [
+            110, 300, 600, 1200, 2400, 4800, 9600, 14400, 19200, 38400,
+            57600, 115200, 128000, 230400, 250000, 460800, 500000, 921600, 1000000,1250000, 1500000, 2000000
+        ]
+        for br in baudrates:
+            self.baudrate_selector.addItem(str(br))
+        self.baudrate_selector.setCurrentText("115200")
+
+        # إضافة ComboBox لمعدل التحديث بقيم من 1 إلى 10 ثم 20, 30, ..., 100
+        self.update_rate_selector = QComboBox()
+        update_rates = [str(i) for i in range(1, 11)] + [str(i) for i in range(20, 101, 10)]
+        self.update_rate_selector.addItems(update_rates)
+        self.update_rate_selector.setCurrentText(str(self.update_every_n))
+        self.update_rate_selector.currentTextChanged.connect(self.change_update_rate)
+
         self.refresh_button = QPushButton("🔄 Refresh Ports")
         self.start_button = QPushButton("▶️ Start")
         self.stop_button = QPushButton("⏹️ Stop")
@@ -133,6 +154,8 @@ class SerialPlotter(QMainWindow):
         top_layout = QHBoxLayout()
         for widget in [
             QLabel("COM Port:"), self.port_selector, self.refresh_button,
+            QLabel("Baudrate:"), self.baudrate_selector,
+            QLabel("Update Rate:"), self.update_rate_selector,  # أضف هذا السطر
             self.start_button, self.stop_button, self.save_button,
             self.load_csv_button, self.open_img_button,
             self.show_table_button, self.reset_cursors_button
@@ -170,6 +193,8 @@ class SerialPlotter(QMainWindow):
     def start_plotting(self):
         self.reset_cursors()
         selected_port = self.port_selector.currentText()
+        # الحصول على قيمة البودريت المختارة
+        selected_baudrate = int(self.baudrate_selector.currentText())
         if not selected_port:
             self.status_label.setText("❌ No COM port selected.")
             return
@@ -184,7 +209,8 @@ class SerialPlotter(QMainWindow):
                 self.status_label.setText("⚠️ CSV save cancelled.")
                 return
 
-            self.serial = serial.Serial(selected_port, 115200, timeout=1)
+            # استخدم البودريت المختار هنا
+            self.serial = serial.Serial(selected_port, selected_baudrate, timeout=1)
             self.csv_file = open(self.csv_filename, 'w', newline='')
             self.csv_writer = csv.writer(self.csv_file)
 
@@ -219,8 +245,9 @@ class SerialPlotter(QMainWindow):
             return
 
         try:
+            updated = False
             while self.serial.in_waiting:
-                line = self.serial.readline().decode().strip()
+                line = self.serial.readline().decode(errors='ignore').strip()
                 if not line:
                     continue
                 try:
@@ -247,8 +274,12 @@ class SerialPlotter(QMainWindow):
                     if len(self.time_stamps) > self.max_samples:
                         self.time_stamps = self.time_stamps[-self.max_samples:]
 
-                    for i, plot in enumerate(self.plot_lines):
-                        plot.setData(list(range(len(self.y_data_channels[i]))), self.y_data_channels[i])
+                    self.update_counter += 1
+                    if self.update_counter >= self.update_every_n:
+                        for i, plot in enumerate(self.plot_lines):
+                            plot.setData(list(range(len(self.y_data_channels[i]))), self.y_data_channels[i])
+                        self.update_counter = 0
+                        updated = True
 
                     if self.cursor1:
                         self.cursor1.update_position()
@@ -258,6 +289,8 @@ class SerialPlotter(QMainWindow):
 
                 except:
                     continue
+            if updated:
+                QApplication.processEvents()
         except Exception as e:
             self.status_label.setText(f"⚠️ Error: {str(e)}")
 
@@ -442,6 +475,13 @@ class SerialPlotter(QMainWindow):
         dialog.setLayout(layout)
         dialog.resize(800, 400)
         dialog.exec_()
+
+    def change_update_rate(self, value):
+        try:
+            self.update_every_n = int(value)
+            self.status_label.setText(f"🔄 Update rate set to {self.update_every_n}")
+        except Exception:
+            self.status_label.setText("⚠️ Invalid update rate")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
